@@ -4,53 +4,53 @@ let
 
     today = Date.From(DateTimeZone.LocalNow()),
     startYear = Date.Year(today) - 1,
-    endYear   = Date.Year(today) + 1,
+    endYear = Date.Year(today) + 1,
     startDate = #date(startYear, physicalMonth, 1),
-    endDate   = #date(endYear,   physicalMonth, 1),
+    endDate = #date(endYear, physicalMonth, 1),
 
-    Dates = List.Dates(startDate, Duration.Days(endDate - startDate), #duration(1,0,0,0)),
-    BaseTable = Table.FromList(Dates, Splitter.SplitByNothing(), {"Date"}),
+    dates = List.Dates(startDate, Duration.Days(endDate - startDate), #duration(1,0,0,0)),
+    baseTable = Table.FromList(dates, Splitter.SplitByNothing(), {"Date"}),
 
-    WithWeekStart = Table.AddColumn(
-        BaseTable, "WeekStart",
+    withWeekStart = Table.AddColumn(
+        baseTable, "WeekStart",
         each Date.AddDays([Date], -Date.DayOfWeek([Date], physicalDayOfWeek)),
         type date
     ),
 
-    FiscalYearStart = (y as number) as date =>
+    fiscalYearStart = (y as number) as date =>
         let 
             base = #date(y, physicalMonth, 1),
             start = Date.AddDays(base, -Date.DayOfWeek(base, physicalDayOfWeek))
         in start,
 
-    WithFiscalYear = Table.AddColumn(
-        WithWeekStart, "FiscalYear",
+    withFiscalYear = Table.AddColumn(
+        withWeekStart, "FiscalYear",
         each let
             y = Date.Year([Date]),
-            fyStart = FiscalYearStart(y)
+            fyStart = fiscalYearStart(y)
         in if [Date] >= fyStart then y+1 else y
     ),
 
-    WithFiscalStart = Table.AddColumn(
-        WithFiscalYear, "FiscalYearStart",
-        each FiscalYearStart([FiscalYear]-1),
+    withFiscalStart = Table.AddColumn(
+        withFiscalYear, "FiscalYearStart",
+        each fiscalYearStart([FiscalYear]-1),
         type date
     ),
 
-    WithFiscalWeek = Table.AddColumn(
-        WithFiscalStart, "FiscalWeek",
+    withFiscalWeek = Table.AddColumn(
+        withFiscalStart, "FiscalWeek",
         each Number.IntegerDivide(
             Duration.Days([WeekStart] - [FiscalYearStart]), 7
         ) + 1
     ),
 
-    WithMonthWeek = Table.AddColumn(
-        WithFiscalWeek, "MonthWeek",
+    withMonthWeek = Table.AddColumn(
+        withFiscalWeek, "MonthWeek",
         each let
-            firstOfMonth   = Date.StartOfMonth([Date]),
+            firstOfMonth = Date.StartOfMonth([Date]),
             monthStartWeek = Date.AddDays(firstOfMonth, -Date.DayOfWeek(firstOfMonth, physicalDayOfWeek)),
-            weekNum        = Number.IntegerDivide(Duration.Days([WeekStart] - monthStartWeek),7) + 1
+            weekNum = Number.IntegerDivide(Duration.Days([WeekStart] - monthStartWeek),7) + 1
         in Text.From(Date.Month([Date])) & "月" & Text.From(weekNum) & "w"
     )
 in
-    WithMonthWeek
+    withMonthWeek
