@@ -1,0 +1,56 @@
+let
+    // パラメータ
+    physicalMonth = 10,
+    physicalDayOfWeek = Day.Saturday,
+
+    // 今日を基準に前後1年分
+    today = Date.From(DateTimeZone.LocalNow()),
+    startYear = Date.Year(today) - 1,
+    endYear   = Date.Year(today) + 1,
+    startDate = #date(startYear, physicalMonth, 1),
+    endDate   = #date(endYear,   physicalMonth, 1),
+
+    // 全日付リスト
+    Dates = List.Dates(startDate, Duration.Days(endDate - startDate), #duration(1,0,0,0)),
+    BaseTable = Table.FromList(Dates, Splitter.SplitByNothing(), {"Date"}),
+
+    // 各日が属する週（土曜始まり）
+    WithWeekStart = Table.AddColumn(
+        BaseTable, "WeekStart",
+        each Date.AddDays([Date], -Date.DayOfWeek([Date], physicalDayOfWeek)),
+        type date
+    ),
+
+    // 会計年度開始日を返す関数（キャッシュ）
+    FiscalYearStart = (y as number) as date =>
+        let base = #date(y, physicalMonth, 1)
+        in Date.AddDays(base, -Date.DayOfWeek(base, physicalDayOfWeek)),
+
+    // 会計年度（決算月基準）
+    WithFiscalYear = Table.AddColumn(
+        WithWeekStart, "FiscalYear",
+        each if Date.Month([Date]) < physicalMonth 
+             then Date.Year([Date]) 
+             else Date.Year([Date]) + 1
+    ),
+
+    // 年度週番号
+    WithFiscalWeek = Table.AddColumn(
+        WithFiscalYear, "FiscalWeek",
+        each Number.IntegerDivide(
+            Duration.Days([WeekStart] - FiscalYearStart([FiscalYear]-1)), 
+            7
+        ) + 1
+    ),
+
+    // 月週番号（跨ぎ週は先月扱い）
+    WithMonthWeek = Table.AddColumn(
+        WithFiscalWeek, "MonthWeek",
+        each 
+            let firstOfMonth   = Date.StartOfMonth([Date]),
+                monthStartWeek = Date.AddDays(firstOfMonth, -Date.DayOfWeek(firstOfMonth, physicalDayOfWeek)),
+                weekNum        = Number.IntegerDivide(Duration.Days([WeekStart] - monthStartWeek),7) + 1
+            in Text.From(Date.Month([Date])) & "月" & Text.From(weekNum) & "w"
+    )
+in
+    WithMonthWeek
