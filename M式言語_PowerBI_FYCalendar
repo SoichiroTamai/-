@@ -21,7 +21,7 @@ let
         type date
     ),
 
-    // 会計年度開始日を返す関数（キャッシュ）
+    // 会計年度開始日を返す関数
     FiscalYearStart = (y as number) as date =>
         let base = #date(y, physicalMonth, 1)
         in Date.AddDays(base, -Date.DayOfWeek(base, physicalDayOfWeek)),
@@ -34,9 +34,9 @@ let
              else Date.Year([Date]) + 1
     ),
 
-    // 年度週番号
-    WithFiscalWeek = Table.AddColumn(
-        WithFiscalYear, "FiscalWeek",
+    // 年度週番号 → YearWeek
+    WithYearWeek = Table.AddColumn(
+        WithFiscalYear, "YearWeek",
         each Number.IntegerDivide(
             Duration.Days([WeekStart] - FiscalYearStart([FiscalYear]-1)), 
             7
@@ -45,12 +45,21 @@ let
 
     // 月週番号（跨ぎ週は先月扱い）
     WithMonthWeek = Table.AddColumn(
-        WithFiscalWeek, "MonthWeek",
+        WithYearWeek, "MonthWeek",
         each 
             let firstOfMonth   = Date.StartOfMonth([Date]),
                 monthStartWeek = Date.AddDays(firstOfMonth, -Date.DayOfWeek(firstOfMonth, physicalDayOfWeek)),
                 weekNum        = Number.IntegerDivide(Duration.Days([WeekStart] - monthStartWeek),7) + 1
             in Text.From(Date.Month([Date])) & "月" & Text.From(weekNum) & "w"
-    )
+    ),
+
+    // 不要列削除
+    RemoveDate = Table.RemoveColumns(WithMonthWeek, {"Date"}),
+
+    // 列順整理
+    Reorder = Table.ReorderColumns(RemoveDate, {"MonthWeek", "YearWeek", "WeekStart", "FiscalYear"}),
+
+    // 各週に統合（週単位で1行化）
+    DistinctWeeks = Table.Distinct(Reorder)
 in
-    WithMonthWeek
+    DistinctWeeks
